@@ -1,0 +1,8 @@
+dependencies {
+    api project(":api")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+}
+
+test {
+    useJUnitPlatform()
+}

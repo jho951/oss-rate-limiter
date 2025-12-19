@@ -1,0 +1,51 @@
+plugins {
+    id "java" // 루트는 관리용
+    id "maven-publish"
+}
+
+allprojects {
+    group = "io.github.jho951"
+    version = "1.0.0"
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: "java-library"
+    apply plugin: "maven-publish"
+
+    java {
+        toolchain { languageVersion = JavaLanguageVersion.of(17) }
+        withSourcesJar()
+        withJavadocJar()
+    }
+    dependencies {
+        implementation(platform("org.springframework.boot:spring-boot-dependencies:3.5.6"))
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                pom {
+                    name = project.name
+                    artifactId = "ratelimiter-${project.name}"
+                }
+            }
+        }
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/jho951/ratelimiter")
+                credentials {
+                    username = findProperty("githubUsername")
+                    password = findProperty("githubToken")
+                }
+            }
+        }
+    }
+}
+
+
