@@ -1,4 +1,4 @@
-# ratelimiter (Public)
+# rate-limiter
 
 IP / 사용자 ID / API 키 기준으로 요청 빈도를 제한(rate limiting)하는 **재사용 가능한 Public 모듈**입니다.
 
@@ -20,7 +20,7 @@ IP / 사용자 ID / API 키 기준으로 요청 빈도를 제한(rate limiting)�
 ### Gradle
 ```gradle
 dependencies {
-  implementation("io.github.jho951:ratelimiter-config:0.1.0")
+  implementation("io.github.jho951:ratelimiter-config:1.1.0")
 }
 ```
 

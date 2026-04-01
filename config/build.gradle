@@ -1,6 +1,6 @@
 dependencies {
-    api project(":api")
-    implementation project(":core")
+    api project(":ratelimiter-api")
+    implementation project(":ratelimiter-core")
 
     // Spring Boot auto-config + web filter
     implementation "org.springframework.boot:spring-boot-autoconfigure"

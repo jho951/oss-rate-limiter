@@ -1,6 +1,13 @@
 rootProject.name = "rate-limiter"
 
-include "api"
-include "core"
-include "config"
-include "redis"
+include "ratelimiter-api"
+project(":ratelimiter-api").projectDir = file("api")
+
+include "ratelimiter-core"
+project(":ratelimiter-core").projectDir = file("core")
+
+include "ratelimiter-config"
+project(":ratelimiter-config").projectDir = file("config")
+
+include "ratelimiter-redis"
+project(":ratelimiter-redis").projectDir = file("redis")

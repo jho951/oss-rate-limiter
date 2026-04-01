@@ -21,7 +21,6 @@ subprojects {
     java {
         toolchain { languageVersion = JavaLanguageVersion.of(17) }
         withSourcesJar()
-        withJavadocJar()
     }
     dependencies {
         implementation(platform("org.springframework.boot:spring-boot-dependencies:3.5.6"))
@@ -44,10 +43,10 @@ subprojects {
     mavenPublishing {
         publishToMavenCentral()
         signAllPublications()
-        coordinates("${project.group}", "ratelimiter-${project.name}", version)
+        coordinates("${project.group}", project.name, version)
 
         pom {
-            name = "ratelimiter-${project.name}"
+            name = project.name
             description = "Reusable rate limiting module for Java and Spring Boot services."
             inceptionYear = "2026"
             url = "https://github.com/jho951/ratelimiter"
@@ -76,11 +75,4 @@ subprojects {
         }
     }
 
-    afterEvaluate {
-        def plainJavadocJarTask = tasks.findByName("plainJavadocJar")
-        def metadataTask = tasks.findByName("generateMetadataFileForMavenPublication")
-        if (plainJavadocJarTask != null && metadataTask != null) {
-            metadataTask.dependsOn(plainJavadocJarTask)
-        }
-    }
 }

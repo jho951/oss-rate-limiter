@@ -1,7 +1,7 @@
 dependencies {
-    api project(":api")
-    implementation project(":config")
-    implementation project(":core")
+    api project(":ratelimiter-api")
+    implementation project(":ratelimiter-config")
+    implementation project(":ratelimiter-core")
 
     implementation "org.springframework.boot:spring-boot-autoconfigure"
     implementation "org.springframework.data:spring-data-redis:3.4.10"
