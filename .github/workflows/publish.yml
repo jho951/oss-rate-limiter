@@ -1,18 +1,30 @@
-name: Release (tag + publish)
+name: Publish to Maven Central
 
 on:
   push:
-    branches: [ "main" ]
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 1.2.3 or v1.2.3"
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+
+concurrency:
+  group: maven-central-publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -23,27 +35,31 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Read version from gradle.properties
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Resolve version from tag
         id: ver
         run: |
-          VERSION=$(grep '^version=' gradle.properties | cut -d'=' -f2 | tr -d ' \r')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create and push tag if missing
-        run: |
-          TAG="v${{ steps.ver.outputs.version }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag exists: $TAG"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION_SOURCE="${GITHUB_REF_NAME}"
           else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "release: $TAG"
-            git push origin "$TAG"
+            VERSION_SOURCE="${{ inputs.version }}"
           fi
 
-      - name: Publish to GitHub Packages
+          VERSION="${VERSION_SOURCE#v}"
+          if [[ -z "$VERSION" || "$VERSION" == "$VERSION_SOURCE" ]]; then
+            echo "Version must not be empty, got: ${VERSION_SOURCE}"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish and release to Central Portal
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORG_GRADLE_PROJECT_gprUser: ${{ github.actor }}
-          ORG_GRADLE_PROJECT_gprKey: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew clean publish
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
+          ORG_GRADLE_PROJECT_MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
+        run: ./gradlew -PVERSION_NAME=${{ steps.ver.outputs.version }} publishAndReleaseToMavenCentral

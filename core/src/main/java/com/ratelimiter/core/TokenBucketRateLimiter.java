@@ -13,19 +13,25 @@ import com.ratelimiter.api.RateLimiter;
 public final class TokenBucketRateLimiter implements RateLimiter {
 
     private final Clock clock;
-    private final InMemoryTokenBucketStore store;
+    private final TokenBucketStore store;
 
     public TokenBucketRateLimiter() {
         this(Clock.system(), new InMemoryTokenBucketStore());
     }
 
-    public TokenBucketRateLimiter(Clock clock, InMemoryTokenBucketStore store) {
+    public TokenBucketRateLimiter(TokenBucketStore store) {
+        this(Clock.system(), store);
+    }
+
+    public TokenBucketRateLimiter(Clock clock, TokenBucketStore store) {
         this.clock = clock;
         this.store = store;
     }
 
     @Override
     public RateLimitDecision tryAcquire(RateLimitKey key, long permits, RateLimitPlan plan) {
+        if (key == null) throw new IllegalArgumentException("key must not be null");
+        if (plan == null) throw new IllegalArgumentException("plan must not be null");
         if (permits <= 0) permits = 1;
 
         long now = clock.nanoTime();

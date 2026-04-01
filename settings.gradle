@@ -1,7 +1,6 @@
-rootProject.name = "ratelimiter"
+rootProject.name = "rate-limiter"
 
-include(
-  "api",
-  "core",
-  "config"
-)
+include "api"
+include "core"
+include "config"
+include "redis"

@@ -1,10 +1,9 @@
 package com.ratelimiter.config;
 
 import com.ratelimiter.api.RateLimitDecision;
-import com.ratelimiter.api.RateLimitKey;
-import com.ratelimiter.api.RateLimitKeyType;
-import com.ratelimiter.api.RateLimitPlan;
-import com.ratelimiter.core.TokenBucketRateLimiter;
+import com.ratelimiter.api.RateLimiter;
+import com.ratelimiter.api.RateLimitPolicy;
+import com.ratelimiter.api.RateLimitPolicyResolver;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -12,8 +11,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.security.Principal;
+import java.util.List;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -22,69 +25,91 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class RateLimitingFilter extends OncePerRequestFilter {
 
-    private final TokenBucketRateLimiter limiter;
+    private final RateLimiter limiter;
+    private final RateLimitPolicyResolver<HttpServletRequest> policyResolver;
     private final RateLimiterProperties props;
+    private final MeterRegistry meterRegistry;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    public RateLimitingFilter(TokenBucketRateLimiter limiter, RateLimiterProperties props) {
+    public RateLimitingFilter(
+        RateLimiter limiter,
+        RateLimitPolicyResolver<HttpServletRequest> policyResolver,
+        RateLimiterProperties props,
+        MeterRegistry meterRegistry
+    ) {
         this.limiter = limiter;
+        this.policyResolver = policyResolver;
         this.props = props;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
         throws ServletException, IOException {
 
-        // 1) IP
-        String ip = resolveClientIp(request);
-        if (ip != null) {
-            RateLimitDecision d = limiter.tryAcquire(
-                RateLimitKey.of(RateLimitKeyType.IP, ip),
-                1,
-                new RateLimitPlan(props.getIp().getCapacity(), props.getIp().getRefillPerSecond())
-            );
-            if (!d.isAllowed()) { reject(response, "IP rate limited", d); return; }
+        if (isExcludedPath(request.getRequestURI())) {
+            chain.doFilter(request, response);
+            return;
         }
 
-        // 2) USER_ID (Principal 우선, 없으면 헤더)
-        String userId = resolveUserId(request);
-        if (userId != null) {
-            RateLimitDecision d = limiter.tryAcquire(
-                RateLimitKey.of(RateLimitKeyType.USER_ID, userId),
-                1,
-                new RateLimitPlan(props.getUserId().getCapacity(), props.getUserId().getRefillPerSecond())
-            );
-            if (!d.isAllowed()) { reject(response, "USER_ID rate limited", d); return; }
-        }
-
-        // 3) API_KEY
-        String apiKey = request.getHeader(props.getHeader().getApiKeyHeader());
-        if (apiKey != null && !apiKey.isBlank()) {
-            RateLimitDecision d = limiter.tryAcquire(
-                RateLimitKey.of(RateLimitKeyType.API_KEY, apiKey.trim()),
-                1,
-                new RateLimitPlan(props.getApiKey().getCapacity(), props.getApiKey().getRefillPerSecond())
-            );
-            if (!d.isAllowed()) { reject(response, "API_KEY rate limited", d); return; }
+        try {
+            List<RateLimitPolicy> policies = policyResolver.resolve(request);
+            for (RateLimitPolicy policy : policies) {
+                RateLimitDecision decision = limiter.tryAcquire(policy.getKey(), policy.getPermits(), policy.getPlan());
+                recordDecision(policy, decision);
+                if (!decision.isAllowed()) {
+                    reject(response, policy.getName() + " rate limited", decision);
+                    return;
+                }
+            }
+        } catch (RuntimeException ex) {
+            recordError();
+            if (props.isFailOpen()) {
+                chain.doFilter(request, response);
+                return;
+            }
+            throw new ServletException("rate limiter failed", ex);
         }
 
         chain.doFilter(request, response);
     }
 
-    private String resolveUserId(HttpServletRequest request) {
-        Principal p = request.getUserPrincipal();
-        if (p != null && p.getName() != null && !p.getName().isBlank()) return p.getName().trim();
+    private boolean isExcludedPath(String requestUri) {
+        List<String> excludedPaths = props.getExcludedPaths();
+        if (excludedPaths == null || excludedPaths.isEmpty()) {
+            return false;
+        }
 
-        String header = request.getHeader(props.getHeader().getUserIdHeader());
-        if (header != null && !header.isBlank()) return header.trim();
-
-        return null;
+        for (String pattern : excludedPaths) {
+            if (pattern != null && !pattern.isBlank() && pathMatcher.match(pattern.trim(), requestUri)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private String resolveClientIp(HttpServletRequest request) {
-        // 프록시 환경에서 가장 흔한 헤더
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) return xff.split(",")[0].trim();
-        return request.getRemoteAddr();
+    private void recordDecision(RateLimitPolicy policy, RateLimitDecision decision) {
+        if (meterRegistry == null) {
+            return;
+        }
+
+        Counter.builder("ratelimiter.decisions")
+            .tag("key_type", policy.getKey().getType().name())
+            .tag("outcome", decision.isAllowed() ? "allowed" : "denied")
+            .register(meterRegistry)
+            .increment();
+    }
+
+    private void recordError() {
+        if (meterRegistry == null) {
+            return;
+        }
+
+        Counter.builder("ratelimiter.decisions")
+            .tag("key_type", "error")
+            .tag("outcome", "error")
+            .register(meterRegistry)
+            .increment();
     }
 
     private void reject(HttpServletResponse response, String detail, RateLimitDecision d) throws IOException {
