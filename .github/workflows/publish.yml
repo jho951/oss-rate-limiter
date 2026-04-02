@@ -40,6 +40,24 @@ jobs:
       - name: Build & Test
         run: ./gradlew clean build --no-daemon --stacktrace
 
+      - name: Show publication coordinates
+        run: |
+          ./gradlew -q properties --no-daemon | grep -E '^(group|version):'
+
+      - name: Show publish tasks
+        run: |
+          ./gradlew :rate-limiter-api:tasks --all --no-daemon | grep -E 'generateMetadataFileForMavenPublication|publishMavenPublicationToMavenCentralRepository|plainJavadocJar'
+
+      - name: Check namespace config
+        env:
+          MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
+        run: |
+          if [ -z "${MAVEN_CENTRAL_NAMESPACE}" ]; then
+            echo "MAVEN_CENTRAL_NAMESPACE is empty"
+            exit 1
+          fi
+          echo "MAVEN_CENTRAL_NAMESPACE is set"
+
       - name: Publish to Central Portal
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}

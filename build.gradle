@@ -7,16 +7,18 @@ plugins {
     id "com.vanniktech.maven.publish" version "0.36.0" apply false
 }
 
-def projectVersion = (findProperty("VERSION_NAME") ?: findProperty("version") ?: "1.0.0-SNAPSHOT").toString().trim()
-def javaVersion = (findProperty("java_version") ?: "17").toString().trim().toInteger()
-def springBootVersion = (findProperty("spring_boot_version") ?: "3.3.5").toString().trim()
-def junitVersion = (findProperty("junit_version") ?: "5.10.0").toString().trim()
-def junitPlatformVersion = (findProperty("junit_platform_version") ?: "1.10.0").toString().trim()
-def encoding = (findProperty("encoding") ?: "UTF-8").toString().trim()
+ext {
+    projectVersion = (findProperty("VERSION_NAME") ?: findProperty("version") ?: "1.0.0-SNAPSHOT").toString().trim()
+    javaVersion = (findProperty("java_version") ?: "17").toString().trim().toInteger()
+    springBootVersion = (findProperty("spring_boot_version") ?: "3.3.5").toString().trim()
+    junitVersion = (findProperty("junit_version") ?: "5.10.0").toString().trim()
+    junitPlatformVersion = (findProperty("junit_platform_version") ?: "1.10.0").toString().trim()
+    encoding = (findProperty("encoding") ?: "UTF-8").toString().trim()
+}
 
 allprojects {
     group = "io.github.jho951"
-    version = projectVersion
+    version = rootProject.ext.projectVersion
 
     repositories {
         mavenCentral()
@@ -30,13 +32,13 @@ subprojects {
     apply plugin: "com.vanniktech.maven.publish"
 
     java {
-        toolchain { languageVersion = JavaLanguageVersion.of(javaVersion) }
+        toolchain { languageVersion = JavaLanguageVersion.of(rootProject.ext.javaVersion) }
         withSourcesJar()
     }
 
     tasks.withType(JavaCompile).configureEach {
-        options.release.set(javaVersion)
-        options.encoding = encoding
+        options.release.set(rootProject.ext.javaVersion)
+        options.encoding = rootProject.ext.encoding
     }
 
     tasks.withType(Javadoc).configureEach {
@@ -48,19 +50,19 @@ subprojects {
     }
 
     dependencies {
-        implementation(platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}"))
+        implementation(platform("org.springframework.boot:spring-boot-dependencies:${rootProject.ext.springBootVersion}"))
     }
 
     configurations.configureEach {
         if (name.toLowerCase().startsWith("test")) {
             resolutionStrategy.force(
-                "org.junit.jupiter:junit-jupiter:${junitVersion}",
-                "org.junit.jupiter:junit-jupiter-api:${junitVersion}",
-                "org.junit.jupiter:junit-jupiter-engine:${junitVersion}",
-                "org.junit.jupiter:junit-jupiter-params:${junitVersion}",
-                "org.junit.platform:junit-platform-commons:${junitPlatformVersion}",
-                "org.junit.platform:junit-platform-engine:${junitPlatformVersion}",
-                "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
+                "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}",
+                "org.junit.jupiter:junit-jupiter-api:${rootProject.ext.junitVersion}",
+                "org.junit.jupiter:junit-jupiter-engine:${rootProject.ext.junitVersion}",
+                "org.junit.jupiter:junit-jupiter-params:${rootProject.ext.junitVersion}",
+                "org.junit.platform:junit-platform-commons:${rootProject.ext.junitPlatformVersion}",
+                "org.junit.platform:junit-platform-engine:${rootProject.ext.junitPlatformVersion}",
+                "org.junit.platform:junit-platform-launcher:${rootProject.ext.junitPlatformVersion}"
             )
         }
     }

@@ -7,7 +7,7 @@ dependencies {
     implementation "org.springframework.data:spring-data-redis"
     implementation "org.springframework.boot:spring-boot-starter-validation"
 
-    testImplementation platform("org.junit:junit-bom:${findProperty("junit_version")}")
+    testImplementation platform("org.junit:junit-bom:${rootProject.ext.junitVersion}")
     testImplementation "org.junit.jupiter:junit-jupiter"
     testImplementation "org.assertj:assertj-core"
     testImplementation "org.springframework.boot:spring-boot-test"
