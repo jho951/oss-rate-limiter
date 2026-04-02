@@ -8,9 +8,9 @@ dependencies {
     implementation "io.micrometer:micrometer-core"
     implementation "org.springframework:spring-web"
     implementation "jakarta.servlet:jakarta.servlet-api"
-    annotationProcessor "org.springframework.boot:spring-boot-configuration-processor:3.5.6"
-    compileOnly "org.springframework.boot:spring-boot-configuration-processor:3.5.6"
-    testImplementation platform("org.junit:junit-bom:5.8.2")
+    annotationProcessor "org.springframework.boot:spring-boot-configuration-processor:${findProperty("spring_boot_version")}"
+    compileOnly "org.springframework.boot:spring-boot-configuration-processor:${findProperty("spring_boot_version")}"
+    testImplementation platform("org.junit:junit-bom:${findProperty("junit_version")}")
     testImplementation "org.junit.jupiter:junit-jupiter"
     testImplementation "org.springframework.boot:spring-boot-test"
     testImplementation "org.springframework.boot:spring-boot-test-autoconfigure"

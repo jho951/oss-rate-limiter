@@ -9,9 +9,10 @@ plugins {
 
 def projectVersion = (findProperty("VERSION_NAME") ?: findProperty("version") ?: "1.0.0-SNAPSHOT").toString().trim()
 def javaVersion = (findProperty("java_version") ?: "17").toString().trim().toInteger()
-def springBootVersion = (findProperty("spring_boot_version") ?: "3.5.6").toString().trim()
-def junitVersion = (findProperty("junit_version") ?: "5.8.2").toString().trim()
-def junitPlatformVersion = (findProperty("junit_platform_version") ?: "1.8.2").toString().trim()
+def springBootVersion = (findProperty("spring_boot_version") ?: "3.3.5").toString().trim()
+def junitVersion = (findProperty("junit_version") ?: "5.10.0").toString().trim()
+def junitPlatformVersion = (findProperty("junit_platform_version") ?: "1.10.0").toString().trim()
+def encoding = (findProperty("encoding") ?: "UTF-8").toString().trim()
 
 allprojects {
     group = "io.github.jho951"
@@ -35,7 +36,7 @@ subprojects {
 
     tasks.withType(JavaCompile).configureEach {
         options.release.set(javaVersion)
-        options.encoding = "UTF-8"
+        options.encoding = encoding
     }
 
     tasks.withType(Javadoc).configureEach {
