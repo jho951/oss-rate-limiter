@@ -1,18 +1,16 @@
-name: Publish to Maven Central
+name: Publish (Maven Central)
 
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "v*"
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version, for example 1.2.3 or v1.2.3"
-        required: true
-        type: string
 
 permissions:
   contents: read
+
+env:
+  JAVA_VERSION: "17"
 
 concurrency:
   group: maven-central-publish-${{ github.ref }}
@@ -21,6 +19,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -28,38 +27,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
 
-      - name: Resolve version from tag
-        id: ver
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION_SOURCE="${GITHUB_REF_NAME}"
-          else
-            VERSION_SOURCE="${{ inputs.version }}"
-          fi
+      - name: Build & Test
+        run: ./gradlew clean build --no-daemon --stacktrace
 
-          VERSION="${VERSION_SOURCE#v}"
-          if [[ -z "$VERSION" || "$VERSION" == "$VERSION_SOURCE" ]]; then
-            echo "Version must not be empty, got: ${VERSION_SOURCE}"
-            exit 1
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Publish and release to Central Portal
+      - name: Publish to Central Portal
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
           ORG_GRADLE_PROJECT_MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
-        run: ./gradlew -PVERSION_NAME=${{ steps.ver.outputs.version }} publishAndReleaseToMavenCentral
+        run: ./gradlew publishToSonatypeCentral --no-daemon --stacktrace
+
+      - name: Finalize deployment in Central Portal
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
+        run: |
+          if [ -z "${MAVEN_CENTRAL_NAMESPACE}" ]; then
+            echo "MAVEN_CENTRAL_NAMESPACE is not set; skipping Central Portal finalize step."
+            exit 0
+          fi
+          AUTH_TOKEN="$(printf '%s' "${MAVEN_CENTRAL_USERNAME}:${MAVEN_CENTRAL_PASSWORD}" | base64)"
+          curl --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${AUTH_TOKEN}" \
+            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/${MAVEN_CENTRAL_NAMESPACE}"

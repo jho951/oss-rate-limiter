@@ -1,12 +1,19 @@
 plugins {
     id "java"
     id "maven-publish"
+    id "signing"
     id "com.vanniktech.maven.publish" version "0.36.0" apply false
 }
 
+def projectVersion = (findProperty("VERSION_NAME") ?: findProperty("version") ?: "1.0.0-SNAPSHOT").toString().trim()
+def javaVersion = (findProperty("java_version") ?: "17").toString().trim().toInteger()
+def springBootVersion = (findProperty("spring_boot_version") ?: "3.5.6").toString().trim()
+def junitVersion = (findProperty("junit_version") ?: "5.8.2").toString().trim()
+def junitPlatformVersion = (findProperty("junit_platform_version") ?: "1.8.2").toString().trim()
+
 allprojects {
-    group = findProperty("MAVEN_CENTRAL_NAMESPACE") ?: "io.github.jho951"
-    version = findProperty("VERSION_NAME") ?: "1.0.0-SNAPSHOT"
+    group = "io.github.jho951"
+    version = projectVersion
 
     repositories {
         mavenCentral()
@@ -16,29 +23,71 @@ allprojects {
 subprojects {
     apply plugin: "java-library"
     apply plugin: "maven-publish"
+    apply plugin: "signing"
     apply plugin: "com.vanniktech.maven.publish"
 
     java {
-        toolchain { languageVersion = JavaLanguageVersion.of(17) }
+        toolchain { languageVersion = JavaLanguageVersion.of(javaVersion) }
         withSourcesJar()
+        withJavadocJar()
     }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.release.set(javaVersion)
+        options.encoding = "UTF-8"
+    }
+
+    tasks.withType(Javadoc).configureEach {
+        options.addStringOption("Xdoclint:none", "-quiet")
+    }
+
     dependencies {
-        implementation(platform("org.springframework.boot:spring-boot-dependencies:3.5.6"))
+        implementation(platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}"))
     }
 
     configurations.configureEach {
         if (name.toLowerCase().startsWith("test")) {
             resolutionStrategy.force(
-                "org.junit.jupiter:junit-jupiter:5.8.2",
-                "org.junit.jupiter:junit-jupiter-api:5.8.2",
-                "org.junit.jupiter:junit-jupiter-engine:5.8.2",
-                "org.junit.jupiter:junit-jupiter-params:5.8.2",
-                "org.junit.platform:junit-platform-commons:1.8.2",
-                "org.junit.platform:junit-platform-engine:1.8.2",
-                "org.junit.platform:junit-platform-launcher:1.8.2"
+                "org.junit.jupiter:junit-jupiter:${junitVersion}",
+                "org.junit.jupiter:junit-jupiter-api:${junitVersion}",
+                "org.junit.jupiter:junit-jupiter-engine:${junitVersion}",
+                "org.junit.jupiter:junit-jupiter-params:${junitVersion}",
+                "org.junit.platform:junit-platform-commons:${junitPlatformVersion}",
+                "org.junit.platform:junit-platform-engine:${junitPlatformVersion}",
+                "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
             )
         }
     }
+
+    def pomMetadataByProject = [
+        "rate-limiter-api": [
+            name: "Rate Limiter API",
+            description: "Public contracts for the reusable rate limiter library."
+        ],
+        "rate-limiter-core": [
+            name: "Rate Limiter Core",
+            description: "Token Bucket decision engine and in-memory store for the reusable rate limiter library."
+        ],
+        "rate-limiter-config": [
+            name: "Rate Limiter Config",
+            description: "Spring Boot auto-configuration and HTTP adapter for the reusable rate limiter library."
+        ],
+        "rate-limiter-redis": [
+            name: "Rate Limiter Redis",
+            description: "Optional Redis-backed distributed implementation for the reusable rate limiter library."
+        ]
+    ]
+
+    def fallbackProjectName = project.name
+        .replace('-', ' ')
+        .split(' ')
+        .collect { part -> part.capitalize() }
+        .join(' ')
+
+    def pomMetadata = pomMetadataByProject.get(project.name, [
+        name: fallbackProjectName,
+        description: "Reusable rate limiter module for Java and Spring Boot services."
+    ])
 
     mavenPublishing {
         publishToMavenCentral()
@@ -46,14 +95,23 @@ subprojects {
         coordinates("${project.group}", project.name, version)
 
         pom {
-            name = project.name
-            description = "Reusable rate limiting module for Java and Spring Boot services."
-            inceptionYear = "2026"
+            name = pomMetadata.name
+            description = pomMetadata.description
             url = "https://github.com/jho951/ratelimiter"
+            inceptionYear = "2026"
+            organization {
+                name = "jho951"
+                url = "https://github.com/jho951"
+            }
+
+            issueManagement {
+                system = "GitHub Issues"
+                url = "https://github.com/jho951/ratelimiter/issues"
+            }
 
             licenses {
                 license {
-                    name = "The Apache License, Version 2.0"
+                    name = "Apache License, Version 2.0"
                     url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
                     distribution = "repo"
                 }
@@ -69,10 +127,33 @@ subprojects {
 
             scm {
                 url = "https://github.com/jho951/ratelimiter"
-                connection = "scm:git:git://github.com/jho951/ratelimiter.git"
+                connection = "scm:git:https://github.com/jho951/ratelimiter.git"
                 developerConnection = "scm:git:ssh://git@github.com/jho951/ratelimiter.git"
             }
         }
     }
 
+    tasks.withType(PublishToMavenRepository).configureEach {
+        doFirst {
+            def username = (System.getenv("MAVEN_CENTRAL_USERNAME")
+                ?: project.findProperty("mavenCentralUsername")
+                ?: project.findProperty("ossrhUsername")
+                ?: "").toString()
+            def password = (System.getenv("MAVEN_CENTRAL_PASSWORD")
+                ?: project.findProperty("mavenCentralPassword")
+                ?: project.findProperty("ossrhPassword")
+                ?: "").toString()
+
+            if (!username || !password) {
+                throw new GradleException("Missing Central Portal credentials. Set MAVEN_CENTRAL_USERNAME/MAVEN_CENTRAL_PASSWORD.")
+            }
+        }
+    }
+
+}
+
+tasks.register("publishToSonatypeCentral") {
+    group = "publishing"
+    description = "Publish all modules to Sonatype Central."
+    dependsOn(subprojects.collect { "${it.path}:publishToMavenCentral" })
 }
