@@ -64,7 +64,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
-          ORG_GRADLE_PROJECT_MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
+          ORG_GRADLE_PROJECT_mavenCentralNamespace: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
         run: ./gradlew publishToSonatypeCentral --no-daemon --stacktrace
 
       - name: Finalize deployment in Central Portal
