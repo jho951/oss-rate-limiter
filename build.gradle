@@ -41,6 +41,10 @@ subprojects {
         options.addStringOption("Xdoclint:none", "-quiet")
     }
 
+    tasks.matching { it.name == "generateMetadataFileForMavenPublication" }.configureEach {
+        dependsOn(tasks.matching { it.name == "plainJavadocJar" })
+    }
+
     dependencies {
         implementation(platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}"))
     }
