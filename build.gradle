@@ -1,3 +1,5 @@
+import org.gradle.api.publish.tasks.GenerateModuleMetadata
+
 plugins {
     id "java"
     id "maven-publish"
@@ -29,7 +31,6 @@ subprojects {
     java {
         toolchain { languageVersion = JavaLanguageVersion.of(javaVersion) }
         withSourcesJar()
-        withJavadocJar()
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -41,7 +42,7 @@ subprojects {
         options.addStringOption("Xdoclint:none", "-quiet")
     }
 
-    tasks.matching { it.name == "generateMetadataFileForMavenPublication" }.configureEach {
+    tasks.withType(GenerateModuleMetadata).configureEach {
         dependsOn(tasks.matching { it.name == "plainJavadocJar" })
     }
 
