@@ -60,7 +60,20 @@ jobs:
             exit 0
           fi
           AUTH_TOKEN="$(printf '%s' "${MAVEN_CENTRAL_USERNAME}:${MAVEN_CENTRAL_PASSWORD}" | base64)"
+          repository_key="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Authorization: Bearer ${AUTH_TOKEN}" \
+              "https://ossrh-staging-api.central.sonatype.com/manual/search/repositories?ip=any&profile_id=${MAVEN_CENTRAL_NAMESPACE}" \
+              | jq -r '.repositories[] | select(.state == "open") | .key' \
+              | head -n 1
+          )"
+
+          if [ -z "${repository_key}" ] || [ "${repository_key}" = "null" ]; then
+            echo "No open repository was found for namespace ${MAVEN_CENTRAL_NAMESPACE}."
+            exit 1
+          fi
+
           curl --fail-with-body \
-            --request POST \
-            --header "Authorization: Bearer ${AUTH_TOKEN}" \
-            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/${MAVEN_CENTRAL_NAMESPACE}"
+              --request POST \
+              --header "Authorization: Bearer ${AUTH_TOKEN}" \
+            "https://ossrh-staging-api.central.sonatype.com/manual/upload/repository/${repository_key}?publishing_type=automatic"
