@@ -7,6 +7,14 @@ def optionalSettingProp = { String envName, String propKey ->
     envValue ?: providers.gradleProperty(propKey).orNull?.trim()
 }
 
+nmcpSettings {
+    centralPortal {
+        username = optionalSettingProp('MAVEN_CENTRAL_USERNAME', 'mavenCentralUsername')
+        password = optionalSettingProp('MAVEN_CENTRAL_PASSWORD', 'mavenCentralPassword')
+        publishingType = 'AUTOMATIC'
+    }
+}
+
 rootProject.name = "rate-limiter"
 
 include "rate-limiter-core"
