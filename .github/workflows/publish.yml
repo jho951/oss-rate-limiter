@@ -32,7 +32,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          ./gradlew -Prelease_version="$VERSION" publish --no-daemon --stacktrace
+          ./gradlew -Prelease_version="$VERSION" publishAggregationToCentralPortal --no-daemon --stacktrace
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
