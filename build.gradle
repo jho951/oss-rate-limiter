@@ -54,8 +54,6 @@ def rootPublication = [
         pomName    : "Rate Limiter",
         description: "Aggregate entry point for the rate limiter 1-layer modules."
 ]
-def rootPublicationGroupId = group.toString()
-def rootPublicationVersion = version.toString()
 def rootPublicationDependencies = [
         "rate-limiter-core",
         "rate-limiter-spi"
@@ -63,6 +61,8 @@ def rootPublicationDependencies = [
 
 group = requiredRootProp(["release_group"])
 version = requiredRootProp(["release_version"])
+def rootPublicationGroupId = group.toString()
+def rootPublicationVersion = version.toString()
 
 ext {
     buildConfig = [
