@@ -1,33 +1,47 @@
-# Gradle
-.gradle/
-build/
-**/build/
-
-# IDE
-.idea/
-*.iml
-*.ipr
-*.iws
-.classpath
-.project
-.factorypath
-.settings/
-.springBeans
-.sts4-cache/
-.vscode/
-out/
-
-# OS
+# System
 .DS_Store
+Thumbs.db
+ehthumbs.db
+*.swp
 
-# Logs
+# Java
+*.class
 *.log
 
-# Local environment
-.env
-.env.*
-.env.dev
-.envrc
-.direnv/
-gradle.properties
+# Gradle
+/.gradle/
+/.gradle-local/
+/build/
+**/build/
+*.kotlin_module
+*.lck
 
+# Secrets
+.env*
+.envrc
+docker/.generated
+*.key
+*.pem
+*.p12
+
+# IntelliJ
+/.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse / editor leftovers
+*.tmp
+*.orig
+.project
+.settings/
+
+# Data
+data/
+
+# Logs / runtime
+*.pid
+*.seed
+*.out
+*.err

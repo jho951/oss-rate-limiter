@@ -1,44 +1,54 @@
-name: Build
+name: build
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+    paths:
+      - '**/src/**'
+      - '**/*.gradle'
+      - '**/*.gradle.kts'
+      - 'settings.gradle'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '**/gradle.properties'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/**'
+  push:
+    branches: [ main ]
+    paths:
+      - '**/src/**'
+      - '**/*.gradle'
+      - '**/*.gradle.kts'
+      - 'settings.gradle'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '**/gradle.properties'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/**'
 
 permissions:
   contents: read
 
 concurrency:
-  group: backend-ci-${{ github.ref }}
+  group: layer1-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
-
-      - name: Build (skip tests for v1)
-        run: ./gradlew clean build -x test
-
-      - name: Upload test reports (always)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-reports
-          path: build/reports/tests/test
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew clean test --no-daemon --stacktrace

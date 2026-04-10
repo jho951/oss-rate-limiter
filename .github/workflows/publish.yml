@@ -1,97 +1,40 @@
-name: Publish (Maven Central)
+name: publish
 
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch:
+      - 'v*'
 
 permissions:
   contents: read
 
-env:
-  JAVA_VERSION: "17"
-
-concurrency:
-  group: maven-central-publish-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  publish:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test --no-daemon --stacktrace
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
-
-      - name: Build & Test
-        run: ./gradlew clean build --no-daemon --stacktrace
-
-      - name: Show publication coordinates
-        run: |
-          ./gradlew -q properties --no-daemon | grep -E '^(group|version):'
-
-      - name: Show publish tasks
-        run: |
-          ./gradlew :rate-limiter-api:tasks --all --no-daemon | grep -E 'generateMetadataFileForMavenPublication|publishMavenPublicationToMavenCentralRepository|plainJavadocJar'
-
-      - name: Check namespace config
-        env:
-          MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
-        run: |
-          if [ -z "${MAVEN_CENTRAL_NAMESPACE}" ]; then
-            echo "MAVEN_CENTRAL_NAMESPACE is empty"
-            exit 1
-          fi
-          echo "MAVEN_CENTRAL_NAMESPACE is set"
-
-      - name: Publish to Central Portal
-        env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}
-          ORG_GRADLE_PROJECT_mavenCentralNamespace: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
-        run: ./gradlew publishToSonatypeCentral --no-daemon --stacktrace
-
-      - name: Finalize deployment in Central Portal
+  publish:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./gradlew -Prelease_version="$VERSION" publish --no-daemon --stacktrace
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          MAVEN_CENTRAL_NAMESPACE: ${{ secrets.MAVEN_CENTRAL_NAMESPACE }}
-        run: |
-          if [ -z "${MAVEN_CENTRAL_NAMESPACE}" ]; then
-            echo "MAVEN_CENTRAL_NAMESPACE is not set; skipping Central Portal finalize step."
-            exit 0
-          fi
-          AUTH_TOKEN="$(printf '%s' "${MAVEN_CENTRAL_USERNAME}:${MAVEN_CENTRAL_PASSWORD}" | base64)"
-          repository_key="$(
-            curl --fail-with-body --silent --show-error \
-              --header "Authorization: Bearer ${AUTH_TOKEN}" \
-              "https://ossrh-staging-api.central.sonatype.com/manual/search/repositories?ip=any&profile_id=${MAVEN_CENTRAL_NAMESPACE}" \
-              | jq -r '.repositories[] | select(.state == "open") | .key' \
-              | head -n 1
-          )"
-
-          if [ -z "${repository_key}" ] || [ "${repository_key}" = "null" ]; then
-            echo "No open repository was found for namespace ${MAVEN_CENTRAL_NAMESPACE}."
-            exit 1
-          fi
-
-          curl --fail-with-body \
-              --request POST \
-              --header "Authorization: Bearer ${AUTH_TOKEN}" \
-            "https://ossrh-staging-api.central.sonatype.com/manual/upload/repository/${repository_key}?publishing_type=automatic"
+          MAVEN_CENTRAL_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_CENTRAL_GPG_PRIVATE_KEY }}
+          MAVEN_CENTRAL_GPG_PASSPHRASE: ${{ secrets.MAVEN_CENTRAL_GPG_PASSPHRASE }}

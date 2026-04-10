@@ -1,24 +1,75 @@
-import org.gradle.api.publish.tasks.GenerateModuleMetadata
+def requiredRootProp = { List<String> keys ->
+    def value = keys.collect { key ->
+        rootProject.findProperty(key)?.toString()?.trim()
+    }.find { it }
 
-plugins {
-    id "java"
-    id "maven-publish"
-    id "signing"
-    id "com.vanniktech.maven.publish" version "0.36.0" apply false
+    if (!value) {
+        throw new GradleException("Missing required property. Expected one of: ${keys.join(', ')}")
+    }
+    value
 }
 
+def optionalRootProp = { List<String> keys, String defaultValue = "" ->
+    keys.collect { key ->
+        rootProject.findProperty(key)?.toString()?.trim()
+    }.find { it } ?: defaultValue
+}
+
+def envOrRootProp = { String envName, List<String> propKeys = [], String defaultValue = "" ->
+    def envValue = System.getenv(envName)?.trim()
+    envValue ?: optionalRootProp(propKeys, defaultValue)
+}
+
+def normalizeSigningKey = { Object raw, String charset = "UTF-8" ->
+    def text = raw?.toString()?.trim()
+    if (!text) return ""
+
+    text = text.replace("\\r\\n", "\n").replace("\\n", "\n")
+    if (text.startsWith("-----BEGIN PGP PRIVATE KEY BLOCK-----")) {
+        return text
+    }
+
+    try {
+        return new String(text.decodeBase64(), charset).trim()
+    } catch (Exception ignored) {
+        return text
+    }
+}
+
+def modules = [
+        "rate-limiter-core": [
+                artifactId : "rate-limiter-core",
+                pomName    : "Rate Limiter Core",
+                description: "Pure 1-layer rate limiter value objects."
+        ],
+        "rate-limiter-spi" : [
+                artifactId : "rate-limiter-spi",
+                pomName    : "Rate Limiter SPI",
+                description: "Pure 1-layer rate limiter SPI contracts."
+        ],
+]
+
+group = requiredRootProp(["release_group"])
+version = requiredRootProp(["release_version"])
+
 ext {
-    projectVersion = (findProperty("VERSION_NAME") ?: findProperty("version") ?: "1.0.0-SNAPSHOT").toString().trim()
-    javaVersion = (findProperty("java_version") ?: "17").toString().trim().toInteger()
-    springBootVersion = (findProperty("spring_boot_version") ?: "3.3.5").toString().trim()
-    junitVersion = (findProperty("junit_version") ?: "5.10.0").toString().trim()
-    junitPlatformVersion = (findProperty("junit_platform_version") ?: "1.10.0").toString().trim()
-    encoding = (findProperty("encoding") ?: "UTF-8").toString().trim()
+    buildConfig = [
+            javaVersion : requiredRootProp(["java_version"]).toInteger(),
+            junitVersion : optionalRootProp(["junit_version"], "5.10.0"),
+            junitPlatformVersion: optionalRootProp(["junit_platform_version"], "1.10.0"),
+            encoding    : optionalRootProp(["encoding", "encoding_method"], "UTF-8"),
+            githubOrg   : requiredRootProp(["github_org"]),
+            githubRepo  : requiredRootProp(["github_repo"]),
+    ]
+    junitVersion = buildConfig.junitVersion
+    junitPlatformVersion = buildConfig.junitPlatformVersion
+    encoding = buildConfig.encoding
+    githubBaseUrl = "https://github.com/${buildConfig.githubOrg}/${buildConfig.githubRepo}"
 }
 
 allprojects {
-    group = "io.github.jho951"
-    version = rootProject.ext.projectVersion
+    group = rootProject.group
+    version = rootProject.version
 
     repositories {
         mavenCentral()
@@ -27,141 +78,105 @@ allprojects {
 
 subprojects {
     apply plugin: "java-library"
-    apply plugin: "maven-publish"
-    apply plugin: "signing"
-    apply plugin: "com.vanniktech.maven.publish"
+
+    ext {
+        junitVer = rootProject.ext.buildConfig.junitVersion
+        junitPlatformVer = rootProject.ext.buildConfig.junitPlatformVersion
+        encodingMethod = rootProject.ext.buildConfig.encoding
+    }
 
     java {
-        toolchain { languageVersion = JavaLanguageVersion.of(rootProject.ext.javaVersion) }
-        withSourcesJar()
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(rootProject.ext.buildConfig.javaVersion)
+        }
     }
 
     tasks.withType(JavaCompile).configureEach {
-        options.release.set(rootProject.ext.javaVersion)
-        options.encoding = rootProject.ext.encoding
+        options.release.set(rootProject.ext.buildConfig.javaVersion)
+        options.encoding = rootProject.ext.buildConfig.encoding
     }
 
     tasks.withType(Javadoc).configureEach {
         options.addStringOption("Xdoclint:none", "-quiet")
     }
 
-    tasks.withType(GenerateModuleMetadata).configureEach {
-        dependsOn(tasks.matching { it.name == "plainJavadocJar" })
-    }
-
     dependencies {
-        implementation(platform("org.springframework.boot:spring-boot-dependencies:${rootProject.ext.springBootVersion}"))
+        testImplementation platform("org.junit:junit-bom:${rootProject.ext.buildConfig.junitVersion}")
+        testImplementation "org.junit.jupiter:junit-jupiter"
+        testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+        testImplementation "org.assertj:assertj-core:3.24.2"
     }
 
-    configurations.configureEach {
-        if (name.toLowerCase().startsWith("test")) {
-            resolutionStrategy.force(
-                "org.junit.jupiter:junit-jupiter:${rootProject.ext.junitVersion}",
-                "org.junit.jupiter:junit-jupiter-api:${rootProject.ext.junitVersion}",
-                "org.junit.jupiter:junit-jupiter-engine:${rootProject.ext.junitVersion}",
-                "org.junit.jupiter:junit-jupiter-params:${rootProject.ext.junitVersion}",
-                "org.junit.platform:junit-platform-commons:${rootProject.ext.junitPlatformVersion}",
-                "org.junit.platform:junit-platform-engine:${rootProject.ext.junitPlatformVersion}",
-                "org.junit.platform:junit-platform-launcher:${rootProject.ext.junitPlatformVersion}"
-            )
-        }
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
     }
-
-    def pomMetadataByProject = [
-        "rate-limiter-api": [
-            name: "Rate Limiter API",
-            description: "Public contracts for the reusable rate limiter library."
-        ],
-        "rate-limiter-core": [
-            name: "Rate Limiter Core",
-            description: "Token Bucket decision engine and in-memory store for the reusable rate limiter library."
-        ],
-        "rate-limiter-config": [
-            name: "Rate Limiter Config",
-            description: "Spring Boot auto-configuration and HTTP adapter for the reusable rate limiter library."
-        ],
-        "rate-limiter-redis": [
-            name: "Rate Limiter Redis",
-            description: "Optional Redis-backed distributed implementation for the reusable rate limiter library."
-        ]
-    ]
-
-    def fallbackProjectName = project.name
-        .replace('-', ' ')
-        .split(' ')
-        .collect { part -> part.capitalize() }
-        .join(' ')
-
-    def pomMetadata = pomMetadataByProject.get(project.name, [
-        name: fallbackProjectName,
-        description: "Reusable rate limiter module for Java and Spring Boot services."
-    ])
-
-    mavenPublishing {
-        publishToMavenCentral()
-        signAllPublications()
-        coordinates("${project.group}", project.name, version)
-
-        pom {
-            name = pomMetadata.name
-            description = pomMetadata.description
-            url = "https://github.com/jho951/ratelimiter"
-            inceptionYear = "2026"
-            organization {
-                name = "jho951"
-                url = "https://github.com/jho951"
-            }
-
-            issueManagement {
-                system = "GitHub Issues"
-                url = "https://github.com/jho951/ratelimiter/issues"
-            }
-
-            licenses {
-                license {
-                    name = "Apache License, Version 2.0"
-                    url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
-                    distribution = "repo"
-                }
-            }
-
-            developers {
-                developer {
-                    id = "jho951"
-                    name = "jho951"
-                    url = "https://github.com/jho951"
-                }
-            }
-
-            scm {
-                url = "https://github.com/jho951/ratelimiter"
-                connection = "scm:git:https://github.com/jho951/ratelimiter.git"
-                developerConnection = "scm:git:ssh://git@github.com/jho951/ratelimiter.git"
-            }
-        }
-    }
-
-    tasks.withType(PublishToMavenRepository).configureEach {
-        doFirst {
-            def username = (System.getenv("MAVEN_CENTRAL_USERNAME")
-                ?: project.findProperty("mavenCentralUsername")
-                ?: project.findProperty("ossrhUsername")
-                ?: "").toString()
-            def password = (System.getenv("MAVEN_CENTRAL_PASSWORD")
-                ?: project.findProperty("mavenCentralPassword")
-                ?: project.findProperty("ossrhPassword")
-                ?: "").toString()
-
-            if (!username || !password) {
-                throw new GradleException("Missing Central Portal credentials. Set MAVEN_CENTRAL_USERNAME/MAVEN_CENTRAL_PASSWORD.")
-            }
-        }
-    }
-
 }
 
-tasks.register("publishToSonatypeCentral") {
-    group = "publishing"
-    description = "Publish all modules to Sonatype Central."
-    dependsOn(subprojects.collect { "${it.path}:publishToMavenCentral" })
+configure(subprojects.findAll { modules.containsKey(it.name) }) {
+    apply plugin: "maven-publish"
+    apply plugin: "signing"
+
+    def moduleMeta = modules[project.name]
+    def signingKey = normalizeSigningKey(
+            envOrRootProp(
+                    "MAVEN_CENTRAL_GPG_PRIVATE_KEY",
+                    ["mavenCentralSigningKey"]
+            ),
+            rootProject.ext.buildConfig.encoding
+    )
+    def signingPassword = envOrRootProp(
+            "MAVEN_CENTRAL_GPG_PASSPHRASE",
+            ["mavenCentralSigningPassword"]
+    )
+
+    java {
+        withSourcesJar()
+        withJavadocJar()
+    }
+
+    publishing {
+        publications {
+            create("mavenJava", MavenPublication) {
+                from components.java
+
+                groupId = project.group.toString()
+                artifactId = moduleMeta.artifactId
+                version = project.version.toString()
+
+                pom {
+                    name = moduleMeta.pomName
+                    description = moduleMeta.description
+                    url = rootProject.ext.githubBaseUrl
+
+                    licenses {
+                        license {
+                            name = "Apache License, Version 2.0"
+                            url = "https://www.apache.org/licenses/LICENSE-2.0"
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = "jho951"
+                            name = "YJH (jho951)"
+                            url = "https://github.com/${rootProject.ext.buildConfig.githubOrg}"
+                        }
+                    }
+
+                    scm {
+                        connection = "scm:git:${rootProject.ext.githubBaseUrl}.git"
+                        developerConnection = "scm:git:ssh://git@github.com/${rootProject.ext.buildConfig.githubOrg}/${rootProject.ext.buildConfig.githubRepo}.git"
+                        url = rootProject.ext.githubBaseUrl
+                    }
+                }
+            }
+        }
+    }
+
+    signing {
+        if (signingKey) {
+            useInMemoryPgpKeys(signingKey, signingPassword)
+        }
+        sign publishing.publications
+    }
 }
