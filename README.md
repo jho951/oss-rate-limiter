@@ -4,12 +4,13 @@
 핵심 모델과 SPI 계약을 한 묶음으로 제공합니다.
 
 [![Build](https://github.com/jho951/rate-limiter/actions/workflows/build.yml/badge.svg)](https://github.com/jho951/rate-limiter/actions/workflows/build.yml)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.jho951/rate-limiter-core?label=maven%20central)](https://central.sonatype.com/search?q=jho951)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.jho951/rate-limiter?label=maven%20central)](https://central.sonatype.com/search?q=jho951)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 [![Tag](https://img.shields.io/github/v/tag/jho951/rate-limiter)](https://github.com/jho951/rate-limiter/tags)
 
 ## 공개 좌표
 
+- `io.github.jho951:rate-limiter`
 - `io.github.jho951:rate-limiter-core`
 - `io.github.jho951:rate-limiter-spi`
 
@@ -26,6 +27,7 @@ repositories {
 }
 
 dependencies {
+    implementation("io.github.jho951:rate-limiter:<version>")
     implementation("io.github.jho951:rate-limiter-core:<version>")
     implementation("io.github.jho951:rate-limiter-spi:<version>")
 }
