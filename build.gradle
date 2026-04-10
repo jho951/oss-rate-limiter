@@ -54,6 +54,12 @@ def rootPublication = [
         pomName    : "Rate Limiter",
         description: "Aggregate entry point for the rate limiter 1-layer modules."
 ]
+def rootPublicationGroupId = group.toString()
+def rootPublicationVersion = version.toString()
+def rootPublicationDependencies = [
+        "rate-limiter-core",
+        "rate-limiter-spi"
+]
 
 group = requiredRootProp(["release_group"])
 version = requiredRootProp(["release_version"])
@@ -135,13 +141,13 @@ def rootSigningPassword = envOrRootProp(
 
 publishing {
     publications {
-        create("mavenJava", MavenPublication) {
-            groupId = project.group.toString()
-            artifactId = rootPublication.artifactId
-            version = project.version.toString()
+            create("mavenJava", MavenPublication) {
+                groupId = rootPublicationGroupId
+                artifactId = rootPublication.artifactId
+                version = rootPublicationVersion
 
-            pom {
-                packaging = "pom"
+                pom {
+                    packaging = "pom"
                 name = rootPublication.pomName
                 description = rootPublication.description
                 url = rootProject.ext.githubBaseUrl
@@ -172,14 +178,11 @@ publishing {
                 def node = asNode()
                 def dependenciesNode = node.appendNode("dependencies")
 
-                [
-                        "rate-limiter-core",
-                        "rate-limiter-spi"
-                ].each { artifactId ->
+                rootPublicationDependencies.each { artifactId ->
                     def dependencyNode = dependenciesNode.appendNode("dependency")
-                    dependencyNode.appendNode("groupId", project.group.toString())
+                    dependencyNode.appendNode("groupId", rootPublicationGroupId)
                     dependencyNode.appendNode("artifactId", artifactId)
-                    dependencyNode.appendNode("version", project.version.toString())
+                    dependencyNode.appendNode("version", rootPublicationVersion)
                     dependencyNode.appendNode("scope", "compile")
                 }
             }
