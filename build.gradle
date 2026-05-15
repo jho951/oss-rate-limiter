@@ -1,3 +1,8 @@
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.plugins.signing.SigningExtension
+
 def requiredRootProp = { List<String> keys ->
     def value = keys.collect { key ->
         rootProject.findProperty(key)?.toString()?.trim()
@@ -36,6 +41,112 @@ def normalizeSigningKey = { Object raw, String charset = "UTF-8" ->
     }
 }
 
+def isExternalPublishTaskRequested = { Project target ->
+    target.gradle.startParameter.taskNames.any { taskName ->
+        String normalized = taskName.toLowerCase()
+        normalized.contains("publish") && !normalized.contains("mavenlocal")
+    }
+}
+
+def configurePublishedJavaModule = { Project target, Map moduleMeta ->
+    String signingKey = normalizeSigningKey(
+            envOrRootProp(
+                    "MAVEN_CENTRAL_GPG_PRIVATE_KEY",
+                    ["mavenCentralSigningKey", "signingKey"]
+            ),
+            rootProject.ext.buildConfig.encoding
+    )
+    String signingPassword = envOrRootProp(
+            "MAVEN_CENTRAL_GPG_PASSPHRASE",
+            ["mavenCentralSigningPassword", "signingPassword"]
+    )
+
+    target.pluginManager.apply("maven-publish")
+    target.pluginManager.apply("signing")
+
+    target.extensions.configure(org.gradle.api.plugins.JavaPluginExtension) { java ->
+        java.withSourcesJar()
+        java.withJavadocJar()
+    }
+
+    target.extensions.configure(PublishingExtension) { publishing ->
+        publishing.publications.register("mavenJava", MavenPublication) { publication ->
+            publication.from(target.components.getByName("java"))
+            publication.groupId = target.group.toString()
+            publication.artifactId = moduleMeta.artifactId
+            publication.version = target.version.toString()
+
+            publication.pom {
+                name.set(moduleMeta.pomName)
+                description.set(moduleMeta.description)
+                url.set(rootProject.ext.githubBaseUrl)
+
+                licenses {
+                    license {
+                        name.set(optionalRootProp(["pom_license_name"], "The Apache License, Version 2.0"))
+                        url.set(optionalRootProp(["pom_license_url"], "https://www.apache.org/licenses/LICENSE-2.0.txt"))
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set(optionalRootProp(["pom_developer_id"], "jho951"))
+                        name.set(optionalRootProp(["pom_developer_name"], "YJH (jho951)"))
+
+                        String developerEmail = optionalRootProp(["pom_developer_email"], "jho951@naver.com")
+                        if (developerEmail) {
+                            email.set(developerEmail)
+                        }
+
+                        url.set(optionalRootProp(["pom_developer_url"], "https://github.com/${rootProject.ext.buildConfig.githubOrg}"))
+                    }
+                }
+
+                scm {
+                    connection.set("scm:git:${rootProject.ext.githubBaseUrl}.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/${rootProject.ext.buildConfig.githubOrg}/${rootProject.ext.buildConfig.githubRepo}.git")
+                    url.set(rootProject.ext.githubBaseUrl)
+                }
+            }
+        }
+    }
+
+    target.extensions.configure(SigningExtension) { signing ->
+        signing.required {
+            isExternalPublishTaskRequested(target)
+        }
+
+        if (signingKey) {
+            signing.useInMemoryPgpKeys(signingKey, signingPassword)
+        }
+
+        signing.sign(target.extensions.getByType(PublishingExtension).publications)
+    }
+
+    target.tasks.withType(PublishToMavenRepository).configureEach { publishTask ->
+        publishTask.doFirst {
+            String username = envOrRootProp("MAVEN_CENTRAL_USERNAME", ["mavenCentralUsername", "ossrhUsername"])
+            String password = envOrRootProp("MAVEN_CENTRAL_PASSWORD", ["mavenCentralPassword", "ossrhPassword"])
+
+            if (!username || !password) {
+                throw new GradleException(
+                    "Missing Maven Central credentials. " +
+                    "Set MAVEN_CENTRAL_USERNAME/MAVEN_CENTRAL_PASSWORD " +
+                    "(or mavenCentralUsername/mavenCentralPassword)."
+                )
+            }
+
+            if (!signingKey) {
+                throw new GradleException(
+                    "Missing signing key. " +
+                    "Set MAVEN_CENTRAL_GPG_PRIVATE_KEY " +
+                    "(or mavenCentralSigningKey/signingKey)."
+                )
+            }
+        }
+    }
+}
+
 def modules = [
         "rate-limiter-core": [
                 artifactId : "rate-limiter-core",
@@ -49,20 +160,8 @@ def modules = [
         ],
 ]
 
-def rootPublication = [
-        artifactId : "rate-limiter",
-        pomName    : "Rate Limiter",
-        description: "Aggregate entry point for the rate limiter 1-layer modules."
-]
-def rootPublicationDependencies = [
-        "rate-limiter-core",
-        "rate-limiter-spi"
-]
-
 group = requiredRootProp(["release_group"])
 version = requiredRootProp(["release_version"])
-def rootPublicationGroupId = group.toString()
-def rootPublicationVersion = version.toString()
 
 ext {
     buildConfig = [
@@ -124,144 +223,6 @@ subprojects {
     }
 }
 
-apply plugin: "maven-publish"
-apply plugin: "signing"
-
-def rootSigningKey = normalizeSigningKey(
-        envOrRootProp(
-                "MAVEN_CENTRAL_GPG_PRIVATE_KEY",
-                ["mavenCentralSigningKey"]
-        ),
-        rootProject.ext.buildConfig.encoding
-)
-def rootSigningPassword = envOrRootProp(
-        "MAVEN_CENTRAL_GPG_PASSPHRASE",
-        ["mavenCentralSigningPassword"]
-)
-
-publishing {
-    publications {
-            create("mavenJava", MavenPublication) {
-                groupId = rootPublicationGroupId
-                artifactId = rootPublication.artifactId
-                version = rootPublicationVersion
-
-                pom {
-                    packaging = "pom"
-                name = rootPublication.pomName
-                description = rootPublication.description
-                url = rootProject.ext.githubBaseUrl
-
-                licenses {
-                    license {
-                        name = "Apache License, Version 2.0"
-                        url = "https://www.apache.org/licenses/LICENSE-2.0"
-                    }
-                }
-
-                developers {
-                    developer {
-                        id = "jho951"
-                        name = "YJH (jho951)"
-                        url = "https://github.com/${rootProject.ext.buildConfig.githubOrg}"
-                    }
-                }
-
-                scm {
-                    connection = "scm:git:${rootProject.ext.githubBaseUrl}.git"
-                    developerConnection = "scm:git:ssh://git@github.com/${rootProject.ext.buildConfig.githubOrg}/${rootProject.ext.buildConfig.githubRepo}.git"
-                    url = rootProject.ext.githubBaseUrl
-                }
-            }
-
-            pom.withXml {
-                def node = asNode()
-                def dependenciesNode = node.appendNode("dependencies")
-
-                rootPublicationDependencies.each { artifactId ->
-                    def dependencyNode = dependenciesNode.appendNode("dependency")
-                    dependencyNode.appendNode("groupId", rootPublicationGroupId)
-                    dependencyNode.appendNode("artifactId", artifactId)
-                    dependencyNode.appendNode("version", rootPublicationVersion)
-                    dependencyNode.appendNode("scope", "compile")
-                }
-            }
-        }
-    }
-}
-
-signing {
-    if (rootSigningKey) {
-        useInMemoryPgpKeys(rootSigningKey, rootSigningPassword)
-    }
-    sign publishing.publications
-}
-
 configure(subprojects.findAll { modules.containsKey(it.name) }) {
-    apply plugin: "maven-publish"
-    apply plugin: "signing"
-
-    def moduleMeta = modules[project.name]
-    def signingKey = normalizeSigningKey(
-            envOrRootProp(
-                    "MAVEN_CENTRAL_GPG_PRIVATE_KEY",
-                    ["mavenCentralSigningKey"]
-            ),
-            rootProject.ext.buildConfig.encoding
-    )
-    def signingPassword = envOrRootProp(
-            "MAVEN_CENTRAL_GPG_PASSPHRASE",
-            ["mavenCentralSigningPassword"]
-    )
-
-    java {
-        withSourcesJar()
-        withJavadocJar()
-    }
-
-    publishing {
-        publications {
-            create("mavenJava", MavenPublication) {
-                from components.java
-
-                groupId = project.group.toString()
-                artifactId = moduleMeta.artifactId
-                version = project.version.toString()
-
-                pom {
-                    name = moduleMeta.pomName
-                    description = moduleMeta.description
-                    url = rootProject.ext.githubBaseUrl
-
-                    licenses {
-                        license {
-                            name = "Apache License, Version 2.0"
-                            url = "https://www.apache.org/licenses/LICENSE-2.0"
-                        }
-                    }
-
-                    developers {
-                        developer {
-                            id = "jho951"
-                            name = "YJH (jho951)"
-                            url = "https://github.com/${rootProject.ext.buildConfig.githubOrg}"
-                        }
-                    }
-
-                    scm {
-                        connection = "scm:git:${rootProject.ext.githubBaseUrl}.git"
-                        developerConnection = "scm:git:ssh://git@github.com/${rootProject.ext.buildConfig.githubOrg}/${rootProject.ext.buildConfig.githubRepo}.git"
-                        url = rootProject.ext.githubBaseUrl
-                    }
-                }
-            }
-        }
-    }
-
-    signing {
-        if (signingKey) {
-            useInMemoryPgpKeys(signingKey, signingPassword)
-        }
-        sign publishing.publications
-    }
+    configurePublishedJavaModule(project, modules[project.name])
 }

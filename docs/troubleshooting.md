@@ -1,6 +1,6 @@
 # 트러블슈팅
 
-`rate-limiter`의 1계층 내부에서 자주 만나는 문제와 확인 순서입니다.
+`rate-limiter`의 공개 계약을 사용할 때 자주 만나는 문제와 확인 순서입니다.
 
 ## 1. `RateLimitKey`를 생성할 수 없다
 
@@ -24,16 +24,17 @@
 ## 3. `RateLimitPolicy`의 permits가 기대와 다르다
 
 ### 원인
-- `permits <= 0` 이면 내부에서 `1`로 정규화합니다.
+- `permits <= 0` 이면 `IllegalArgumentException`이 발생합니다.
 
 ### 조치
-- 호출 전 permits 값을 명시적으로 확인합니다.
+- 호출 전 permits 값을 양수인지 명시적으로 확인합니다.
 - 한 번의 검사 단위를 1토큰으로 볼지, 여러 토큰으로 볼지 정책을 분리합니다.
 
 ## 4. `RateLimitPolicy.of(...)` 호출 결과가 예상과 다르다
 
 ### 원인
 - `name`, `key`, `plan` 중 하나가 `null` 입니다.
+- `permits`가 `0` 이하입니다.
 
 ### 조치
 - 정책 이름, key, plan을 모두 채운 뒤 생성합니다.
@@ -53,20 +54,22 @@
 
 ### 원인
 - `rate-limiter-spi`는 인터페이스만 제공합니다.
-- 실제 동작 구현은 별도 2계층이나 애플리케이션에서 주입해야 합니다.
+- 실제 동작 구현은 애플리케이션이나 별도 2계층에서 주입해야 합니다.
 
 ### 조치
 - `RateLimiter`, `RateLimitKeyResolver`, `RateLimitPolicyResolver` 구현체를 준비합니다.
-- core와 spi를 함께 의존하도록 구성합니다.
+- 프레임워크 연동이 필요하면 별도 adapter 계층에서 연결합니다.
 
 ## 7. `rate-limiter-spi`만 의존했는데 타입을 못 찾는다
 
 ### 원인
-- `rate-limiter-spi`는 `rate-limiter-core`의 모델 타입을 사용합니다.
-- core를 같이 의존하지 않으면 `RateLimitKey`, `RateLimitPlan` 같은 타입이 보이지 않습니다.
+- `rate-limiter-spi`는 `rate-limiter-core`를 전이 의존성으로 노출합니다.
+- 보통은 import 누락, 잘못된 버전, IDE 동기화 문제 때문에 타입이 보이지 않습니다.
 
 ### 조치
-- `rate-limiter-core`와 `rate-limiter-spi`를 함께 의존합니다.
+- 먼저 `io.github.jho951:rate-limiter-spi:<version>`만 의존하고 있는지 확인합니다.
+- Gradle refresh 또는 IDE 프로젝트 동기화를 다시 실행합니다.
+- import 경로가 `io.github.jho951.ratelimiter.core` / `spi`인지 확인합니다.
 
 ## 8. Gradle에서 `release_version`을 찾지 못한다
 
@@ -100,8 +103,8 @@
 
 ## 11. 먼저 확인할 파일
 
-- [`rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitKey.java`](/Users/jhons/Downloads/BE/module/rate-limiter/rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitKey.java)
-- [`rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitPlan.java`](/Users/jhons/Downloads/BE/module/rate-limiter/rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitPlan.java)
-- [`rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitPolicy.java`](/Users/jhons/Downloads/BE/module/rate-limiter/rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitPolicy.java)
-- [`rate-limiter-spi/src/main/java/io/github/jho951/ratelimiter/spi/RateLimiter.java`](/Users/jhons/Downloads/BE/module/rate-limiter/rate-limiter-spi/src/main/java/io/github/jho951/ratelimiter/spi/RateLimiter.java)
-- [`build.gradle`](/Users/jhons/Downloads/BE/module/rate-limiter/build.gradle)
+- [RateLimitKey.java](/Users/jhons/Downloads/BE/oss/rate-limiter/rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitKey.java)
+- [RateLimitPlan.java](/Users/jhons/Downloads/BE/oss/rate-limiter/rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitPlan.java)
+- [RateLimitPolicy.java](/Users/jhons/Downloads/BE/oss/rate-limiter/rate-limiter-core/src/main/java/io/github/jho951/ratelimiter/core/RateLimitPolicy.java)
+- [RateLimiter.java](/Users/jhons/Downloads/BE/oss/rate-limiter/rate-limiter-spi/src/main/java/io/github/jho951/ratelimiter/spi/RateLimiter.java)
+- [build.gradle](/Users/jhons/Downloads/BE/oss/rate-limiter/build.gradle)
