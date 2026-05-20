@@ -74,12 +74,13 @@
 ## 8. Gradle에서 `release_version`을 찾지 못한다
 
 ### 원인
-- publish 경로는 `release_version`을 필수로 봅니다.
-- 로컬 실행 시 `gradle.properties` 또는 `-Prelease_version`이 없을 수 있습니다.
+- 루트 `build.gradle`은 모든 Gradle 설정 단계에서 `release_version`을 필요로 합니다.
+- 보통은 저장소의 `gradle.properties`가 기본값을 제공하지만, 외부 실행 환경에서는 이 값이 빠질 수 있습니다.
 
 ### 조치
-- 로컬에서는 `gradle.properties`의 값을 확인합니다.
-- 릴리스 시에는 태그와 함께 `release_version`을 주입합니다.
+- 로컬에서는 `gradle.properties`의 값을 확인하거나 `-Prelease_version=<version>`을 명시합니다.
+- CI나 릴리스 자동화에서는 `ORG_GRADLE_PROJECT_release_version` 또는 동등한 project property를 주입합니다.
+- 현재 `publish.yml`은 `v*` 태그에서 버전을 계산해 이 값을 override 합니다.
 
 ## 9. Maven Central publish가 실패한다
 

@@ -13,10 +13,10 @@
 
 ## 동작 흐름
 
-1. 요청 주체를 `RateLimitKey`로 표현합니다.
-2. 제한 정책을 `RateLimitPlan`과 `RateLimitPolicy`로 표현합니다.
-3. 실행 계층이 `RateLimiter`를 호출합니다.
-4. 결과를 `RateLimitDecision`으로 받습니다.
+1. 요청이나 컨텍스트에서 `RateLimitKeyResolver`가 `RateLimitKey`를 만듭니다.
+2. `RateLimitPolicyResolver`가 `RateLimitPlan`, `permits`, `key`를 조합해 하나 이상의 `RateLimitPolicy`를 만듭니다.
+3. 실행 계층이 각 정책에 대해 `RateLimiter`를 호출합니다.
+4. 결과를 `RateLimitDecision`으로 받거나, 필요하면 `RateLimitException`에 실어 전달합니다.
 
 ## 1계층 OSS 기준
 

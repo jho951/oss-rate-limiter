@@ -1,5 +1,11 @@
 # 테스트/CI 가이드
 
+## 기본 전제
+
+- 빌드와 테스트는 Java 17 toolchain 기준입니다.
+- 저장소 기본 `release_version`은 [gradle.properties](/Users/jhons/Downloads/BE/oss/rate-limiter/gradle.properties)에 들어 있습니다.
+- 릴리스 워크플로우는 태그에서 계산한 버전으로 `release_version`을 override 합니다.
+
 ## 로컬 테스트 실행
 
 ### 전체 빌드
@@ -39,7 +45,8 @@
   2. `actions/setup-java`
   3. `gradle/actions/setup-gradle`
   4. `./gradlew <task> --no-daemon --stacktrace`
-- 필요 시 `release_version`을 Gradle project property로 주입합니다.
+- `release-version` 입력이 비어 있지 않으면 `ORG_GRADLE_PROJECT_release_version`으로 주입합니다.
+- 입력이 비어 있으면 저장소의 `gradle.properties` 값을 그대로 사용합니다.
 
 
 ### `build.yml`

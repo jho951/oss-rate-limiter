@@ -10,6 +10,11 @@
 - `rate-limiter-spi` : SPI 계약을 제공하고 `rate-limiter-core`를 전이 의존성으로 가져옵니다.
 - `rate-limiter-core` : 값 객체와 판정 모델만 필요할 때 사용합니다.
 
+## 요구 사항
+
+- Java 17+
+- 로컬 빌드와 테스트는 Gradle Wrapper(`./gradlew`) 기준으로 설명합니다.
+
 ## 빠른 시작
 
 ```gradle
