@@ -7,6 +7,7 @@ import io.github.jho951.ratelimiter.core.RateLimitPlan;
 import io.github.jho951.ratelimiter.core.RateLimitPolicy;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +25,7 @@ class RateLimiterSpiContractTest {
             (source, type) -> RateLimitKey.of(type, source.clientIp());
 
         RateLimitPolicyResolver<RequestContext> policyResolver =
-            source -> List.of(
+            source -> Arrays.asList(
                 RateLimitPolicy.of(
                     "per-ip",
                     keyResolver.resolve(source, RateLimitKeyType.IP),
@@ -96,7 +97,7 @@ class RateLimiterSpiContractTest {
             2
         );
         RateLimitPolicyResolver<RequestContext> policyResolver =
-            source -> List.of(ipPolicy, customPolicy);
+            source -> Arrays.asList(ipPolicy, customPolicy);
 
         List<RateLimitPolicy> policies = policyResolver.resolve(request);
 
@@ -105,6 +106,15 @@ class RateLimiterSpiContractTest {
         assertSame(customPolicy, policies.get(1));
     }
 
-    private record RequestContext(String clientIp) {
+    private static final class RequestContext {
+        private final String clientIp;
+
+        private RequestContext(String clientIp) {
+            this.clientIp = clientIp;
+        }
+
+        private String clientIp() {
+            return clientIp;
+        }
     }
 }

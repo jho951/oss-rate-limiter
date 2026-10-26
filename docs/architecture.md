@@ -4,12 +4,14 @@
 
 - `rate-limiter-core` : 핵심 모델과 값 객체를 제공합니다.
 - `rate-limiter-spi` : 외부 구현이 따르는 SPI 인터페이스를 제공합니다.
+- `rate-limiter-redis-jedis` : Jedis를 통해 Redis에서 원자적으로 토큰 버킷을 처리합니다.
 
 ## 경계 원칙
 
 - 핵심 모델은 `rate-limiter-core`에만 둡니다.
 - SPI 계약은 `rate-limiter-spi`에만 둡니다.
-- Spring, starter, config, Redis 같은 구현은 이 저장소에 두지 않습니다.
+- Spring과 서비스별 설정은 소비 애플리케이션에 둡니다.
+- Redis 구현은 선택적 `rate-limiter-redis-jedis` 모듈에 두며 Spring Bean 등록은 소비 애플리케이션이 담당합니다.
 
 ## 동작 흐름
 

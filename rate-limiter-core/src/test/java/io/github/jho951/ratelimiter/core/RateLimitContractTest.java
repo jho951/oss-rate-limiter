@@ -37,6 +37,13 @@ class RateLimitContractTest {
     }
 
     @Test
+    void planRejectsNonFiniteRefillRates() {
+        assertThrows(IllegalArgumentException.class, () -> new RateLimitPlan(1, Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> new RateLimitPlan(1, Double.POSITIVE_INFINITY));
+        assertThrows(IllegalArgumentException.class, () -> new RateLimitPlan(1, Double.NEGATIVE_INFINITY));
+    }
+
+    @Test
     void policyRejectsNullRequiredFields() {
         RateLimitKey key = RateLimitKey.of(RateLimitKeyType.IP, "1.2.3.4");
         RateLimitPlan plan = RateLimitPlan.perSecond(10, 1.0);
@@ -44,6 +51,15 @@ class RateLimitContractTest {
         assertThrows(NullPointerException.class, () -> RateLimitPolicy.of(null, key, plan, 1));
         assertThrows(NullPointerException.class, () -> RateLimitPolicy.of("ip-limit", null, plan, 1));
         assertThrows(NullPointerException.class, () -> RateLimitPolicy.of("ip-limit", key, null, 1));
+    }
+
+    @Test
+    void policyTrimsNameAndRejectsBlankName() {
+        RateLimitKey key = RateLimitKey.of(RateLimitKeyType.IP, "1.2.3.4");
+        RateLimitPlan plan = RateLimitPlan.perSecond(10, 1.0);
+
+        assertEquals("ip-limit", RateLimitPolicy.of(" ip-limit ", key, plan, 1).getName());
+        assertThrows(IllegalArgumentException.class, () -> RateLimitPolicy.of("  ", key, plan, 1));
     }
 
     @Test
@@ -66,6 +82,16 @@ class RateLimitContractTest {
             RateLimitKey.of(RateLimitKeyType.IP, "1.2.3.4"),
             RateLimitPlan.perSecond(10, 1.0),
             0
+        ));
+    }
+
+    @Test
+    void policyRejectsPermitsAbovePlanCapacity() {
+        assertThrows(IllegalArgumentException.class, () -> RateLimitPolicy.of(
+            "ip-limit",
+            RateLimitKey.of(RateLimitKeyType.IP, "1.2.3.4"),
+            RateLimitPlan.perSecond(10, 1.0),
+            11
         ));
     }
 

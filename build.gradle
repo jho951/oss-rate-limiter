@@ -158,6 +158,11 @@ def modules = [
                 pomName    : "Rate Limiter SPI",
                 description: "Pure 1-layer rate limiter SPI contracts."
         ],
+        "rate-limiter-redis-jedis": [
+                artifactId : "rate-limiter-redis-jedis",
+                pomName    : "Rate Limiter Redis Jedis",
+                description: "Redis-backed rate limiter implementation using Jedis."
+        ],
 ]
 
 group = requiredRootProp(["release_group"])
@@ -203,7 +208,12 @@ subprojects {
     }
 
     tasks.withType(JavaCompile).configureEach {
-        options.release.set(rootProject.ext.buildConfig.javaVersion)
+        if (rootProject.ext.buildConfig.javaVersion >= 9) {
+            options.release.set(rootProject.ext.buildConfig.javaVersion)
+        } else {
+            sourceCompatibility = rootProject.ext.buildConfig.javaVersion.toString()
+            targetCompatibility = rootProject.ext.buildConfig.javaVersion.toString()
+        }
         options.encoding = rootProject.ext.buildConfig.encoding
     }
 

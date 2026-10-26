@@ -2,7 +2,7 @@
 
 ## 기본 전제
 
-- 빌드와 테스트는 Java 17 toolchain 기준입니다.
+- 빌드와 테스트는 Java 8 toolchain 기준입니다.
 - 저장소 기본 `release_version`은 [gradle.properties](/Users/jhons/Downloads/BE/oss/rate-limiter/gradle.properties)에 들어 있습니다.
 - 릴리스 워크플로우는 태그에서 계산한 버전으로 `release_version`을 override 합니다.
 
@@ -19,7 +19,10 @@
 ```bash
 ./gradlew :rate-limiter-core:test
 ./gradlew :rate-limiter-spi:test
+./gradlew :rate-limiter-redis-jedis:test
 ```
+
+Redis 통합 테스트는 `RATE_LIMIT_REDIS_TEST_HOST`가 설정된 경우에 실행됩니다. Redis 없이 실행하면 구현체의 순수 단위 테스트만 수행하고 통합 테스트는 건너뜁니다.
 
 ## 현재 테스트 범위
 
@@ -28,6 +31,8 @@
   - `RateLimitValueObjectTest`
 - `rate-limiter-spi`
   - `RateLimiterSpiContractTest`
+- `rate-limiter-redis-jedis`
+  - `JedisRateLimiterTest` (Redis 설정 시 동시성 및 키별 격리 검증)
 
 ## GitHub Actions 워크플로우
 
@@ -65,7 +70,7 @@
   1. 태그에서 `release_version` 계산
   2. `_gradle.yml`을 호출해 `test` 실행
   3. `_gradle.yml`을 호출해 `publishAggregationToCentralPortal` 실행
-  4. `rate-limiter-core`와 `rate-limiter-spi`를 Maven Central에 배포
+  4. 모든 공개 모듈을 Maven Central에 배포
 
 ## 예시 검증 방식
 

@@ -21,3 +21,6 @@ rootProject.name = "rate-limiter"
 
 include "rate-limiter-core"
 include "rate-limiter-spi"
+include "rate-limiter-redis-jedis"
+
+

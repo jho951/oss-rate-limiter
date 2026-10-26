@@ -23,6 +23,16 @@ class RateLimitValueObjectTest {
     }
 
     @Test
+    void apiKeyIsRedactedFromStringRepresentation() {
+        RateLimitKey key = RateLimitKey.of(RateLimitKeyType.API_KEY, "secret-api-key");
+
+        assertTrue(key.toString().contains("[REDACTED]"));
+        assertNotEquals(-1, key.toString().indexOf("[REDACTED]"));
+        assertEquals(-1, key.toString().indexOf("secret-api-key"));
+        assertEquals("API_KEY:secret-api-key", key.asString());
+    }
+
+    @Test
     void planSupportsValueSemantics() {
         RateLimitPlan left = RateLimitPlan.perSecond(10, 5.0);
         RateLimitPlan same = RateLimitPlan.perSecond(10, 5.0);
@@ -76,6 +86,14 @@ class RateLimitValueObjectTest {
     @Test
     void exceptionRequiresDecision() {
         assertThrows(NullPointerException.class, () -> new RateLimitException("blocked", null));
+    }
+
+    @Test
+    void exceptionRejectsAllowedDecision() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new RateLimitException("blocked", RateLimitDecision.allow(1))
+        );
     }
 
     @Test
